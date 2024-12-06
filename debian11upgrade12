@@ -1,0 +1,17 @@
+#!/bin/bash
+set -e
+echo "Debian 11 auf Debian 12 Upgrade-Skript"
+echo "--------------------------------------"
+read -p "Hast du ein Backup erstellt und möchtest fortfahren? (y/n): " confirm
+if [[ "$confirm" != "y" ]]; then echo "Abgebrochen."; exit 1; fi
+sudo apt update && sudo apt upgrade -y
+sudo apt dist-upgrade -y
+sudo apt autoremove --purge -y
+sudo sed -i 's/bullseye/bookworm/g' /etc/apt/sources.list
+sudo apt update
+sudo apt upgrade -y
+sudo apt full-upgrade -y
+sudo apt autoremove --purge -y
+echo "Upgrade abgeschlossen. Starte das System neu, um die Änderungen abzuschließen."
+read -p "Jetzt neu starten? (y/n): " reboot_confirm
+if [[ "$reboot_confirm" == "y" ]]; then sudo reboot; else echo "Bitte starte das System manuell neu."; fi
