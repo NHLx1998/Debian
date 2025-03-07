@@ -1,0 +1,164 @@
+#!/bin/bash
+
+# Proxmox-Setup v1.0.1
+# Entwickelt von: NHL98
+
+cd /Proxmox-Debian12 && clear
+
+# Konfigurationsdateien laden
+source ./configs/*
+
+# Funktion zur Anzeige des Sprachmenüs
+sprache_waehlen() 
+{
+    whiptail --title "Sprachauswahl" --menu "Wähle deine bevorzugte Sprache:" 15 40 2 \
+        1 "Deutsch" \
+        2 "Englisch" 2>tempfile
+
+    auswahl=$(cat tempfile)
+    rm -f tempfile
+
+    case $auswahl in
+        1)
+            sprache="de"
+            ;;
+        2)
+            sprache="en"
+            ;;
+        *)
+            echo -e "${rot}Installation abgebrochen...${standard}"
+            exit 1
+            ;;
+    esac
+
+    echo "LANGUAGE=$sprache" > ./configs/sprache.conf
+    echo -e "\nSprache auf $sprache gesetzt."
+}
+
+# Root-Rechte prüfen
+super_user()
+{
+    if [ "$(whoami)" != "root" ]; then
+        echo -e "${cyan}Wechsle zu Superuser-Rechten...${standard}"
+        sudo -E bash "$0" "$@"
+        exit $?
+    fi
+    chmod +x scripts/*
+    chmod +rw configs/*
+}
+
+# Willkommensnachricht
+willkommen()
+{
+    echo -e "${cyan}            Skript entwickelt von: \e[1;92mhttps://github.com/mathewalves${standard}." && sleep 0.5
+    echo ""
+    echo -e "${cyan} --> Willkommen beim Proxmox-Installationsskript für Debian 12 ~~${standard}" && sleep 0.5
+    echo -e "${blau} Dieses Skript installiert Proxmox auf Debian 12 und bietet die Möglichkeit, zusätzliche Pakete zu installieren...${standard}" && sleep 0.5
+    echo ""
+    echo -e "${gelb}WARNUNG: Während der Installation kann das System mehrfach neustarten. Schließe das Skript nicht!" 
+    echo -e "Drücke 'Enter' zum Fortfahren...${standard}"
+    read ok
+}
+
+# Installation zusätzlicher Pakete
+zusatzpakete()
+{
+    if whiptail --title "Zusätzliche Pakete installieren" --yesno "Möchtest du zusätzliche Pakete installieren?" 10 50; then
+        clear
+        install_nala
+        install_sudo
+        install_neofetch
+        install_net_tools
+        update_system
+        ./scripts/install_proxmox-1.sh
+    else
+        echo -e "${cyan}Überspringe Installation zusätzlicher Pakete...${standard}"
+        ./scripts/install_proxmox-1.sh
+    fi
+}
+
+# sudo installieren
+install_sudo() 
+{
+    echo -e "${cyan}Installiere sudo...${standard}"
+    nala install -y sudo
+    echo -e "${blau}Suche Benutzer für sudo-Berechtigungen...${standard}"
+
+    benutzer_array=()
+    for benutzer in $(grep -E '^[^:]+:[^:]+:[0-9]{4,}' /etc/passwd | cut -d: -f1); do
+        benutzer_array+=("$benutzer" "")
+    done
+
+    while true; do
+        ausgewaehlter_benutzer=$(whiptail --title "Benutzerauswahl" --menu "Wähle einen Benutzer für sudo-Berechtigungen:" 15 60 6 "${benutzer_array[@]}" 3>&1 1>&2 2>&3)
+
+        if [ $? -eq 0 ]; then
+            if id "$ausgewaehlter_benutzer" &>/dev/null && groups "$ausgewaehlter_benutzer" | grep -qw sudo; then
+                clear
+                echo -e "${blau}Benutzer ${cyan}$ausgewaehlter_benutzer${blau} hat bereits sudo-Rechte.${standard}"
+            else
+                clear
+                sed -i "/^sudo/s/$/$ausgewaehlter_benutzer/" /etc/group
+                echo -e "${gruen}Sudo-Rechte für ${cyan}$ausgewaehlter_benutzer${gruen} aktualisiert.${standard}"
+            fi
+            break
+        else
+            clear
+            echo -e "${gelb}Sudo-Berechtigungen nicht geändert.${standard}"
+            break
+        fi
+    done
+}
+
+# nala installieren
+install_nala() 
+{
+    echo -e "${cyan}Installiere 'nala'...${standard}"
+    apt install -y nala
+    echo -e "${gruen}'nala' erfolgreich installiert!${standard}"
+}
+
+# neofetch installieren
+install_neofetch() 
+{
+    echo -e "${cyan}Installiere 'neofetch'...${standard}"
+    nala install -y neofetch
+    echo -e "${gruen}'neofetch' erfolgreich installiert!${standard}"
+}
+
+# Netzwerk-Tools installieren
+install_net_tools() 
+{
+    echo -e "${cyan}Installiere 'net-tools' & 'nmap'...${standard}"
+    nala install -y nmap net-tools
+    echo -e "${gruen}Pakete erfolgreich installiert!${standard}"
+}
+
+# System aktualisieren
+update_system() 
+{
+    echo -e "${cyan}Aktualisiere das System...${standard}"
+    nala update -y && nala upgrade -y
+    echo -e "${gruen}System erfolgreich aktualisiert!${standard}"
+}
+   
+# Hauptfunktion
+main()
+{
+    super_user
+    sprache_waehlen
+    clear
+    sleep 0.5
+    echo -e "${rot}                                                             _                 "
+    echo -e "${rot}  _ __  _ __ _____  ___ __ ___   _____  __          ___  ___| |_ _   _ _ __ "
+    echo -e "${rot} | '_ \| '__/ _ \ \/ / '_ \` _ \ / _ \ \/ /         / __|/ _ \ __| | | | _  \"
+    echo -e "${rot} | |_) | | | (_) >  <| | | | | | (_) >  <          \__ \  __/ |_| |_| | |_) |"
+    echo -e "${rot} | .__/|_|  \___/_/\_\_| |_| |_|\___/_/\_\  _____  |___/\___|\__|\__,_| .__/"
+    echo -e "${rot} |_|                                       |_____|                    |_|    ${gelb}v1.0.1${standard}"
+    echo -e "\e[0m"
+    sleep 0.5
+    willkommen
+    zusatzpakete
+}
+
+main
